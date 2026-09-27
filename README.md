@@ -52,7 +52,7 @@ The current milestone is a **local catalog foundation**, not a published site
 or a recommendation engine. It can:
 
 - Import selected works, editions, and authors from Open Library dumps into a
-  local SQLite database.
+  local SQLite database managed with Drizzle migrations.
 - Store work details, subjects, editions, and book-series information when the
   source provides them.
 - Search work and edition titles and return one result per work.

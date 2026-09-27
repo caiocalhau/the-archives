@@ -6,8 +6,8 @@ This milestone validates the data flow before publishing an API: a selection of 
 
 1. `src/catalog/open-library.ts` reads each TSV line and normalizes works, editions, and authors. The parser does not access the database.
 2. `src/catalog/import.ts` streams the dumps, including `.gz` files, and imports only the work IDs in `selection.txt`. Malformed lines are counted in the report without interrupting valid records.
-3. `src/catalog/schema.sql` separates `works` from `editions`. Authors, subjects, and series are related to works. Open Library IDs are preserved, and `works.source` records provenance.
-4. `src/catalog/queries.ts` searches an FTS5 index of work and edition titles but returns each work only once. `src/cli.ts` exposes import, search, and details as JSON.
+3. `src/catalog/schema.ts` defines the relational tables with Drizzle. The versioned SQL in `drizzle/` initializes the local database, including the FTS5 virtual table that Drizzle does not model. Authors, subjects, and series are related to works. Open Library IDs are preserved, and `works.source` records provenance.
+4. `src/catalog/import.ts` and `src/catalog/queries.ts` use Drizzle for relational reads and writes. FTS5 index maintenance and title matching remain parameterized SQL. Search returns each work only once. `src/cli.ts` exposes import, search, and details as JSON.
 
 The work/edition distinction follows the [Open Library model](https://openlibrary.org/dev/docs/api/books). The five-column format and monthly dumps are described in the [dump documentation](https://openlibrary.org/developers/dumps). The [SQLite FTS5](https://www.sqlite.org/fts5.html) `unicode61` tokenizer supports case- and accent-insensitive searches for Latin-script titles.
 
@@ -39,4 +39,5 @@ npm run typecheck
 - The `series` field appears on [Open Library editions](https://openlibrary.org/type/edition). The importer associates it with the work and extracts a position only from an explicit expression such as `Example Series #2`. Missing series and other formats may have no known order.
 - Each import upserts by source ID and refreshes the title index. Repeated imports do not duplicate records. Deleting works that disappear from the source is outside this milestone.
 - Full dumps are large and must be scanned locally. A small selection limits the resulting database size but does not eliminate the time needed to read the source files.
-- Description search, normalized categories, recommendations, regional preferences, and D1 publication belong to later milestones. The local catalog is a verifiable foundation for them.
+- `initializeCatalog` applies versioned migrations, including to existing local catalogs created before Drizzle. To change relational tables, edit `src/catalog/schema.ts`, run `npx drizzle-kit generate`, review the generated SQL, and keep FTS5 changes in a custom SQL migration.
+- Description search, normalized categories, recommendations, regional preferences, and D1 publication belong to later milestones. Drizzle currently runs against local SQLite; it does not yet connect to D1.
