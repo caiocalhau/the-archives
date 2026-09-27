@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Define the local catalog's relational schema with Drizzle and apply versioned
   migrations. Use typed relational queries for imports and work details while
-  retaining SQL for FTS5 title search and index maintenance.
+  retaining SQL for FTS5 title search and index maintenance
+  ([#2](https://github.com/caiocalhau/the-archives/pull/2)).
 
 ### Fixed
 
