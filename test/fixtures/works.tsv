@@ -1,3 +1,3 @@
-/type/work	/works/OL1W	1	2026-09-01T00:00:00Z	{"title":"O Senhor dos Anéis","description":{"value":"Fantasia e aventura em uma terra imaginária."},"first_publish_date":"1954","authors":[{"author":{"key":"/authors/OL1A"}}],"subjects":["Fantasy","Adventure"]}
+/type/work	/works/OL1W	1	2026-09-01T00:00:00Z	{"title":"The Lord of the Rings","description":{"value":"Fantasy and adventure in an imaginary world."},"first_publish_date":"1954","authors":[{"author":{"key":"/authors/OL1A"}}],"subjects":["Fantasy","Adventure"]}
 /type/work	/works/BROKEN	1	2026-09-01T00:00:00Z	{not-json
-/type/work	/works/OL2W	1	2026-09-01T00:00:00Z	{"title":"O Jardim Invisível","authors":[{"author":{"key":"/authors/OL2A"}}]}
+/type/work	/works/OL2W	1	2026-09-01T00:00:00Z	{"title":"The Café Garden","authors":[{"author":{"key":"/authors/OL2A"}}]}

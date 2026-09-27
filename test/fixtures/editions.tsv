@@ -1,3 +1,3 @@
-/type/edition	/books/OL1M	1	2026-09-01T00:00:00Z	{"title":"The Fellowship of the Ring","works":[{"key":"/works/OL1W"}],"languages":[{"key":"/languages/eng"}],"series":["Saga Exemplo #1"]}
-/type/edition	/books/OL2M	1	2026-09-01T00:00:00Z	{"title":"O Jardim Invisivel","works":[{"key":"/works/OL2W"}],"languages":[{"key":"/languages/por"}]}
-/type/edition	/books/OL3M	1	2026-09-01T00:00:00Z	{"title":"Livro Fora da Seleção","works":[{"key":"/works/OL3W"}]}
+/type/edition	/books/OL1M	1	2026-09-01T00:00:00Z	{"title":"The Fellowship of the Ring","works":[{"key":"/works/OL1W"}],"languages":[{"key":"/languages/eng"}],"series":["The Lord of the Rings #1"]}
+/type/edition	/books/OL2M	1	2026-09-01T00:00:00Z	{"title":"The Cafe Garden","works":[{"key":"/works/OL2W"}],"languages":[{"key":"/languages/eng"}]}
+/type/edition	/books/OL3M	1	2026-09-01T00:00:00Z	{"title":"Book Outside the Selection","works":[{"key":"/works/OL3W"}]}

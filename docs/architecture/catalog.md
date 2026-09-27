@@ -1,19 +1,19 @@
-# Catálogo local — primeira etapa
+# Local catalog — first milestone
 
-Esta etapa prova o caminho dos dados antes de publicar uma API: uma seleção de IDs de obras da Open Library entra em um banco SQLite local; a busca devolve obras, não uma linha por edição. O arquivo SQLite e os dumps ficam fora do Git. A API pública, a recomendação temática e o frontend ainda não fazem parte desta etapa.
+This milestone validates the data flow before publishing an API: a selection of Open Library work IDs is imported into a local SQLite database, and searches return works rather than one result per edition. The SQLite database and source dumps stay out of Git. The public API, thematic recommendations, and frontend are outside this milestone.
 
-## Fluxo dos dados
+## Data flow
 
-1. `src/catalog/open-library.ts` lê cada linha TSV e normaliza obras, edições e autores. O parser não acessa o banco.
-2. `src/catalog/import.ts` percorre os dumps em streaming, inclusive arquivos `.gz`, e importa somente os IDs de `selection.txt`. Linhas inválidas são contadas no relatório e não interrompem os registros válidos.
-3. `src/catalog/schema.sql` separa `works` de `editions`. Autores, assuntos e séries são relações da obra. IDs da Open Library são preservados; `works.source` registra a procedência.
-4. `src/catalog/queries.ts` consulta um índice FTS5 para títulos de obras e edições, mas retorna cada obra uma vez. `src/cli.ts` expõe importação, busca e detalhes em JSON.
+1. `src/catalog/open-library.ts` reads each TSV line and normalizes works, editions, and authors. The parser does not access the database.
+2. `src/catalog/import.ts` streams the dumps, including `.gz` files, and imports only the work IDs in `selection.txt`. Malformed lines are counted in the report without interrupting valid records.
+3. `src/catalog/schema.sql` separates `works` from `editions`. Authors, subjects, and series are related to works. Open Library IDs are preserved, and `works.source` records provenance.
+4. `src/catalog/queries.ts` searches an FTS5 index of work and edition titles but returns each work only once. `src/cli.ts` exposes import, search, and details as JSON.
 
-A separação obra/edição segue o [modelo da Open Library](https://openlibrary.org/dev/docs/api/books). O formato de cinco colunas e os dumps mensais estão descritos na [documentação dos dumps](https://openlibrary.org/developers/dumps). O tokenizer `unicode61` do [SQLite FTS5](https://www.sqlite.org/fts5.html) permite a busca por títulos latinos com diferença de caixa e acentos.
+The work/edition distinction follows the [Open Library model](https://openlibrary.org/dev/docs/api/books). The five-column format and monthly dumps are described in the [dump documentation](https://openlibrary.org/developers/dumps). The [SQLite FTS5](https://www.sqlite.org/fts5.html) `unicode61` tokenizer supports case- and accent-insensitive searches for Latin-script titles.
 
-## Experimentar com dados sintéticos
+## Try it with synthetic data
 
-Com Node.js 24 e as dependências instaladas:
+With Node.js 24 and dependencies installed:
 
 ```bash
 nvm use
@@ -25,18 +25,18 @@ npm run catalog -- import \
   --authors test/fixtures/authors.tsv \
   --selection test/fixtures/selection.txt \
   --db data/catalog.db
-npm run catalog -- search "senhor dos aneis" --db data/catalog.db
+npm run catalog -- search "lord of the rings" --db data/catalog.db
 npm run catalog -- show /works/OL1W --db data/catalog.db
 npm test
 npm run typecheck
 ```
 
-`search` aceita `--limit` com um inteiro positivo; o padrão é 20. O mesmo comando `import` aceita dumps `.txt.gz` da Open Library. A seleção contém uma chave `/works/...` por linha. Os exemplos são dados sintéticos para exercitar o fluxo, não um catálogo real nem descrições de livros reproduzidas.
+`search` accepts a positive integer through `--limit` and defaults to 20. The same `import` command accepts Open Library `.txt.gz` dumps. The selection file contains one `/works/...` key per line. These examples use synthetic data to exercise the flow, not a real catalog or reproduced book descriptions.
 
-## Decisões e limites atuais
+## Current decisions and limits
 
-- O índice de títulos inclui nomes das edições; isso permite encontrar uma tradução sem mostrá-la como um livro separado. O ranqueamento por relevância ainda será desenvolvido.
-- O campo `series` aparece nas [edições da Open Library](https://openlibrary.org/type/edition). O importador associa essa informação à obra; só extrai a posição de uma expressão explícita como `Nome da série #2`. Séries ausentes ou em outros formatos ainda podem ficar sem ordem conhecida.
-- Cada importação faz upsert por ID de origem e atualiza os títulos no índice. Ela pode ser repetida sem duplicar registros. A remoção de obras que deixaram de existir na origem não é tratada nesta etapa.
-- Os dumps completos são grandes e precisam ser percorridos localmente. Uma seleção pequena limita o banco produzido, mas não elimina o tempo de leitura dos arquivos de origem.
-- Busca descritiva, categorias normalizadas, recomendações, preferência regional e publicação no D1 pertencem às próximas etapas. O catálogo local é a base verificável para elas.
+- The title index includes edition titles, so a translated title can find its work without appearing as a separate book. Relevance ranking is not implemented yet.
+- The `series` field appears on [Open Library editions](https://openlibrary.org/type/edition). The importer associates it with the work and extracts a position only from an explicit expression such as `Example Series #2`. Missing series and other formats may have no known order.
+- Each import upserts by source ID and refreshes the title index. Repeated imports do not duplicate records. Deleting works that disappear from the source is outside this milestone.
+- Full dumps are large and must be scanned locally. A small selection limits the resulting database size but does not eliminate the time needed to read the source files.
+- Description search, normalized categories, recommendations, regional preferences, and D1 publication belong to later milestones. The local catalog is a verifiable foundation for them.

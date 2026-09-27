@@ -30,23 +30,23 @@ test('title search resolves editions to one work and ignores case and Latin acce
   const db = openCatalog(dbPath);
   try {
     db.prepare('INSERT INTO editions(id, work_id, title) VALUES (?, ?, ?)')
-      .run('/books/OL1M2', '/works/OL1W', 'O Senhor dos Aneis');
+      .run('/books/OL1M2', '/works/OL1W', 'The Lord of the Rings: Revised Edition');
     db.prepare('INSERT INTO work_titles(work_id, title) VALUES (?, ?)')
-      .run('/works/OL1W', 'O Senhor dos Aneis');
-    assert.deepEqual(searchWorksByTitle(db, 'senhor dos aneis', 10), [
-      { id: '/works/OL1W', title: 'O Senhor dos Anéis' },
+      .run('/works/OL1W', 'The Lord of the Rings: Revised Edition');
+    assert.deepEqual(searchWorksByTitle(db, 'LORD OF THE RINGS', 10), [
+      { id: '/works/OL1W', title: 'The Lord of the Rings' },
     ]);
-    assert.deepEqual(searchWorksByTitle(db, 'Anéis'.normalize('NFD'), 10), [
-      { id: '/works/OL1W', title: 'O Senhor dos Anéis' },
+    assert.deepEqual(searchWorksByTitle(db, 'Café'.normalize('NFD'), 10), [
+      { id: '/works/OL2W', title: 'The Café Garden' },
     ]);
     assert.deepEqual(searchWorksByTitle(db, 'fellowship of the ring', 10).map((work) => work.id), [
       '/works/OL1W',
     ]);
-    assert.deepEqual(searchWorksByTitle(db, 'jardim invisivel', 10).map((work) => work.id), [
+    assert.deepEqual(searchWorksByTitle(db, 'cafe garden', 10).map((work) => work.id), [
       '/works/OL2W',
     ]);
     assert.deepEqual(searchWorksByTitle(db, '', 10), []);
-    assert.throws(() => searchWorksByTitle(db, 'jardim', 0), /limit/i);
+    assert.throws(() => searchWorksByTitle(db, 'garden', 0), /limit/i);
   } finally {
     db.close();
   }
@@ -61,12 +61,12 @@ test('work details return known relations and leave missing data absent', async 
   try {
     assert.deepEqual(getWorkDetails(db, '/works/OL1W'), {
       id: '/works/OL1W',
-      title: 'O Senhor dos Anéis',
-      description: 'Fantasia e aventura em uma terra imaginária.',
-      authors: ['Autora Exemplo'],
+      title: 'The Lord of the Rings',
+      description: 'Fantasy and adventure in an imaginary world.',
+      authors: ['Example Author'],
       editions: [{ id: '/books/OL1M', title: 'The Fellowship of the Ring', language: 'eng' }],
       subjects: ['Adventure', 'Fantasy'],
-      series: [{ id: 'openlibrary:series:saga exemplo', name: 'Saga Exemplo', position: '1' }],
+      series: [{ id: 'openlibrary:series:the lord of the rings', name: 'The Lord of the Rings', position: '1' }],
     });
     assert.equal(getWorkDetails(db, '/works/OL2W')?.description, null);
     assert.deepEqual(getWorkDetails(db, '/works/OL2W')?.subjects, []);
@@ -92,7 +92,7 @@ test('CLI imports, searches and shows a work with JSON output', (t) => {
   assert.equal(imported.status, 0, imported.stderr);
   assert.equal(JSON.parse(imported.stdout).works, 2);
 
-  const search = run('search', 'senhor dos aneis', '--db', dbPath);
+  const search = run('search', 'lord of the rings', '--db', dbPath);
   assert.ifError(search.error);
   assert.equal(search.status, 0, search.stderr);
   assert.deepEqual(JSON.parse(search.stdout).map((work: { id: string }) => work.id), ['/works/OL1W']);

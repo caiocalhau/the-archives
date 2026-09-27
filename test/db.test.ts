@@ -26,16 +26,16 @@ test('editions require an existing work and a unique source ID', () => {
     assert.equal(db.pragma('foreign_keys', { simple: true }), 1);
     assert.throws(
       () => db.prepare('INSERT INTO editions(id, work_id, title) VALUES (?, ?, ?)')
-        .run('/books/OL1M', '/works/missing', 'Livro'),
+        .run('/books/OL1M', '/works/missing', 'Book'),
       /FOREIGN KEY/,
     );
     db.prepare('INSERT INTO works(id, title, source) VALUES (?, ?, ?)')
-      .run('/works/OL1W', 'Livro', 'openlibrary');
+      .run('/works/OL1W', 'Book', 'openlibrary');
     db.prepare('INSERT INTO editions(id, work_id, title) VALUES (?, ?, ?)')
-      .run('/books/OL1M', '/works/OL1W', 'Livro');
+      .run('/books/OL1M', '/works/OL1W', 'Book');
     assert.throws(
       () => db.prepare('INSERT INTO editions(id, work_id, title) VALUES (?, ?, ?)')
-        .run('/books/OL1M', '/works/OL1W', 'Livro'),
+        .run('/books/OL1M', '/works/OL1W', 'Book'),
       /UNIQUE/,
     );
   } finally {

@@ -48,7 +48,7 @@ test('imports selected works and their relations without duplicating a repeated 
     const series = db.prepare('SELECT work_id, position FROM work_series').get();
     assert.deepEqual(series, { work_id: '/works/OL1W', position: '1' });
     const author = db.prepare('SELECT name FROM authors WHERE id = ?').get('/authors/OL1A');
-    assert.deepEqual(author, { name: 'Autora Exemplo' });
+    assert.deepEqual(author, { name: 'Example Author' });
   } finally {
     db.close();
   }
