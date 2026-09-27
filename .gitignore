@@ -1,1 +1,7 @@
 docs/superpowers/
+node_modules/
+data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
