@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migrations. Use typed relational queries for imports and work details while
   retaining SQL for FTS5 title search and index maintenance
   ([#2](https://github.com/caiocalhau/the-archives/pull/2)).
+- Pin direct dependencies to installed versions and configure npm to save
+  exact versions for future additions
+  ([#2](https://github.com/caiocalhau/the-archives/pull/2)).
 
 ### Fixed
 

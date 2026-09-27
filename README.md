@@ -67,6 +67,10 @@ records is also not the same as hosting a complete worldwide catalog.
 Use Node.js 24 and install dependencies with `npm ci`. The example below uses
 synthetic test data; it does not download the full Open Library catalog.
 
+Direct dependencies use exact versions in `package.json`, and the committed
+lockfile fixes the full dependency tree. Project npm settings save exact
+versions for future additions.
+
 ```bash
 npm ci
 mkdir -p data
