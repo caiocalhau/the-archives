@@ -1,5 +1,7 @@
 import { createReadStream, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
+import { PassThrough } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'node:zlib';
 import type Database from 'better-sqlite3';
 import { initializeCatalog, openCatalog } from './db.js';
@@ -31,13 +33,18 @@ export interface ImportReport {
 
 async function* readLines(path: string): AsyncGenerator<string> {
   const file = createReadStream(path);
-  const input = path.endsWith('.gz') ? file.pipe(createGunzip()) : file;
-  const reader = createInterface({ input, crlfDelay: Infinity });
+  const output = new PassThrough();
+  const completion = path.endsWith('.gz')
+    ? pipeline(file, createGunzip(), output)
+    : pipeline(file, output);
+  void completion.catch(() => undefined);
+  const reader = createInterface({ input: output, crlfDelay: Infinity });
   try {
     for await (const line of reader) yield line;
+    await completion;
   } finally {
     reader.close();
-    input.destroy();
+    output.destroy();
     file.destroy();
   }
 }
@@ -58,6 +65,7 @@ function catalogWriter(db: Database.Database) {
       title = excluded.title,
       language = excluded.language
   `);
+  const previousEditionParent = db.prepare('SELECT work_id FROM editions WHERE id = ?');
   const upsertAuthorRow = db.prepare(`
     INSERT INTO authors(id, name) VALUES (?, ?)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name
@@ -120,9 +128,11 @@ function catalogWriter(db: Database.Database) {
       refreshTitles(work.id);
     }),
     edition: db.transaction((edition: NormalizedEdition) => {
+      const previous = previousEditionParent.get(edition.id) as { work_id: string } | undefined;
       upsertEditionRow.run(edition.id, edition.workId, edition.title, edition.language);
       addSeries(edition.workId, edition.series);
       refreshTitles(edition.workId);
+      if (previous && previous.work_id !== edition.workId) refreshTitles(previous.work_id);
     }),
     author: db.transaction((id: string, name: string) => {
       upsertAuthorRow.run(id, name);

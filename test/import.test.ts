@@ -42,7 +42,7 @@ test('imports selected works and their relations without duplicating a repeated 
     assert.equal(countRows(db, 'editions'), 2);
     assert.equal(countRows(db, 'authors'), 2);
     assert.equal(countRows(db, 'work_authors'), 2);
-    assert.equal(countRows(db, 'subjects'), 3);
+    assert.equal(countRows(db, 'subjects'), 2);
     assert.equal(countRows(db, 'work_series'), 1);
     assert.equal(countRows(db, 'work_titles'), 4);
     const series = db.prepare('SELECT work_id, position FROM work_series').get();
@@ -60,6 +60,7 @@ test('imports selected works and their relations without duplicating a repeated 
     assert.equal(countRows(repeated, 'editions'), 2);
     assert.equal(countRows(repeated, 'work_series'), 1);
     assert.equal(countRows(repeated, 'work_titles'), 4);
+    assert.deepEqual(repeated.prepare('SELECT position FROM work_series').get(), { position: '1' });
   } finally {
     repeated.close();
   }
@@ -112,4 +113,48 @@ test('skips an edition whose selected parent work is absent from the dump', asyn
   } finally {
     db.close();
   }
+});
+
+test('moving an edition removes its title from the former work search index', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'the-archives-move-edition-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const dbPath = join(directory, 'catalog.db');
+  const options = {
+    dbPath,
+    worksPath: join(fixtures, 'works.tsv'),
+    editionsPath: join(fixtures, 'editions.tsv'),
+    authorsPath: join(fixtures, 'authors.tsv'),
+    selectionPath: join(fixtures, 'selection.txt'),
+  };
+  await importCatalog(options);
+  const updatedEditions = join(directory, 'editions.tsv');
+  const original = readFileSync(options.editionsPath, 'utf8');
+  const moved = original.replace('"/works/OL1W"', '"/works/OL2W"');
+  assert.notEqual(moved, original);
+  writeFileSync(updatedEditions, moved);
+  await importCatalog({ ...options, editionsPath: updatedEditions });
+
+  const db = openCatalog(dbPath);
+  try {
+    const rows = db.prepare('SELECT work_id FROM work_titles WHERE title = ?')
+      .all('The Fellowship of the Ring');
+    assert.deepEqual(rows, [{ work_id: '/works/OL2W' }]);
+    assert.deepEqual(db.prepare('SELECT work_id FROM editions WHERE id = ?').get('/books/OL1M'), {
+      work_id: '/works/OL2W',
+    });
+  } finally {
+    db.close();
+  }
+});
+
+test('a missing gzip dump rejects with a file error instead of crashing the process', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'the-archives-missing-gzip-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  await assert.rejects(importCatalog({
+    dbPath: join(directory, 'catalog.db'),
+    worksPath: join(directory, 'missing.tsv.gz'),
+    editionsPath: join(fixtures, 'editions.tsv'),
+    authorsPath: join(fixtures, 'authors.tsv'),
+    selectionPath: join(fixtures, 'selection.txt'),
+  }), /ENOENT/);
 });
