@@ -68,7 +68,9 @@ function normalizeSeries(value: unknown): NormalizedSeries[] {
 export function parseDumpLine(line: string): DumpRecord | null {
   const columns = line.split('\t');
   if (columns.length !== 5) return null;
-  const [type, key, , , json] = columns;
+  const type = columns[0];
+  const key = columns[1];
+  const json = columns[4];
   if (!type?.startsWith('/type/') || !key?.startsWith('/') || !json) return null;
   try {
     const data: unknown = JSON.parse(json);
