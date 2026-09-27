@@ -21,7 +21,7 @@ export function searchWorksByTitle(
   if (!Number.isInteger(limit) || limit < 1) {
     throw new RangeError('Search limit must be a positive integer');
   }
-  const tokens = query.match(/[\p{L}\p{N}]+/gu);
+  const tokens = query.normalize('NFC').match(/[\p{L}\p{N}]+/gu);
   if (!tokens?.length) return [];
   const expression = tokens.map((token) => `"${token}"`).join(' AND ');
   return db.prepare(`

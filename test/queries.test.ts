@@ -36,6 +36,9 @@ test('title search resolves editions to one work and ignores case and Latin acce
     assert.deepEqual(searchWorksByTitle(db, 'senhor dos aneis', 10), [
       { id: '/works/OL1W', title: 'O Senhor dos Anéis' },
     ]);
+    assert.deepEqual(searchWorksByTitle(db, 'Anéis'.normalize('NFD'), 10), [
+      { id: '/works/OL1W', title: 'O Senhor dos Anéis' },
+    ]);
     assert.deepEqual(searchWorksByTitle(db, 'fellowship of the ring', 10).map((work) => work.id), [
       '/works/OL1W',
     ]);
@@ -66,6 +69,7 @@ test('work details return known relations and leave missing data absent', async 
       series: [{ id: 'openlibrary:series:saga exemplo', name: 'Saga Exemplo', position: '1' }],
     });
     assert.equal(getWorkDetails(db, '/works/OL2W')?.description, null);
+    assert.deepEqual(getWorkDetails(db, '/works/OL2W')?.subjects, []);
     assert.equal(getWorkDetails(db, '/works/missing'), null);
   } finally {
     db.close();
