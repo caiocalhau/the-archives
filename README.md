@@ -52,7 +52,7 @@ The current milestone is a **local catalog foundation**, not a published site
 or a recommendation engine. It can:
 
 - Import selected works, editions, and authors from Open Library dumps into a
-  local SQLite database.
+  local SQLite database managed with Drizzle migrations.
 - Store work details, subjects, editions, and book-series information when the
   source provides them.
 - Search work and edition titles and return one result per work.
@@ -66,6 +66,10 @@ records is also not the same as hosting a complete worldwide catalog.
 
 Use Node.js 24 and install dependencies with `npm ci`. The example below uses
 synthetic test data; it does not download the full Open Library catalog.
+
+Direct dependencies use exact versions in `package.json`, and the committed
+lockfile fixes the full dependency tree. Project npm settings save exact
+versions for future additions.
 
 ```bash
 npm ci

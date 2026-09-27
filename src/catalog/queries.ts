@@ -1,4 +1,9 @@
 import type Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { eq, sql } from 'drizzle-orm';
+import {
+  authors, editions, series, subjects, workAuthors, works, workSeries, workSubjects,
+} from './schema.js';
 
 export interface WorkSummary {
   id: string;
@@ -35,41 +40,40 @@ export function searchWorksByTitle(
 }
 
 export function getWorkDetails(db: Database.Database, workId: string): WorkDetails | null {
-  const work = db.prepare('SELECT id, title, description FROM works WHERE id = ?')
-    .get(workId) as (WorkSummary & { description: string | null }) | undefined;
+  const orm = drizzle(db);
+  const work = orm.select({ id: works.id, title: works.title, description: works.description })
+    .from(works).where(eq(works.id, workId)).get();
   if (!work) return null;
 
-  const authors = db.prepare(`
-    SELECT authors.name
-    FROM work_authors
-    JOIN authors ON authors.id = work_authors.author_id
-    WHERE work_authors.work_id = ? AND authors.name IS NOT NULL
-    ORDER BY authors.name COLLATE NOCASE
-  `).all(workId) as { name: string }[];
-  const editions = db.prepare(`
-    SELECT id, title, language FROM editions
-    WHERE work_id = ? ORDER BY title COLLATE NOCASE, id
-  `).all(workId) as WorkDetails['editions'];
-  const subjects = db.prepare(`
-    SELECT subjects.label
-    FROM work_subjects
-    JOIN subjects ON subjects.id = work_subjects.subject_id
-    WHERE work_subjects.work_id = ?
-    ORDER BY subjects.label COLLATE NOCASE
-  `).all(workId) as { label: string }[];
-  const series = db.prepare(`
-    SELECT series.id, series.name, work_series.position
-    FROM work_series
-    JOIN series ON series.id = work_series.series_id
-    WHERE work_series.work_id = ?
-    ORDER BY series.name COLLATE NOCASE, series.id
-  `).all(workId) as WorkDetails['series'];
+  const workAuthorsRows = orm.select({ name: authors.name }).from(workAuthors)
+    .innerJoin(authors, eq(authors.id, workAuthors.authorId))
+    .where(eq(workAuthors.workId, workId))
+    .orderBy(sql`${authors.name} COLLATE NOCASE`).all();
+  const workEditions = orm.select({
+    id: editions.id,
+    title: editions.title,
+    language: editions.language,
+  }).from(editions).where(eq(editions.workId, workId))
+    .orderBy(sql`${editions.title} COLLATE NOCASE`, editions.id).all();
+  const workSubjectsRows = orm.select({ label: subjects.label }).from(workSubjects)
+    .innerJoin(subjects, eq(subjects.id, workSubjects.subjectId))
+    .where(eq(workSubjects.workId, workId))
+    .orderBy(sql`${subjects.label} COLLATE NOCASE`).all();
+  const workSeriesRows = orm.select({
+    id: series.id,
+    name: series.name,
+    position: workSeries.position,
+  }).from(workSeries)
+    .innerJoin(series, eq(series.id, workSeries.seriesId))
+    .where(eq(workSeries.workId, workId))
+    .orderBy(sql`${series.name} COLLATE NOCASE`, series.id).all();
 
   return {
     ...work,
-    authors: authors.map(({ name }) => name),
-    editions,
-    subjects: subjects.map(({ label }) => label),
-    series,
+    authors: workAuthorsRows.map(({ name }) => name)
+      .filter((name): name is string => name !== null),
+    editions: workEditions,
+    subjects: workSubjectsRows.map(({ label }) => label),
+    series: workSeriesRows,
   };
 }

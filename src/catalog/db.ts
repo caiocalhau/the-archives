@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
-const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
+const migrationsFolder = fileURLToPath(new URL('../../drizzle/', import.meta.url));
 
 export function openCatalog(path: string): Database.Database {
   const db = new Database(path);
@@ -10,5 +12,5 @@ export function openCatalog(path: string): Database.Database {
 }
 
 export function initializeCatalog(db: Database.Database): void {
-  db.exec(schema);
+  migrate(drizzle(db), { migrationsFolder });
 }

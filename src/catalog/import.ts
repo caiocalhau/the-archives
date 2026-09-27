@@ -4,7 +4,12 @@ import { PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'node:zlib';
 import type Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { eq, sql } from 'drizzle-orm';
 import { initializeCatalog, openCatalog } from './db.js';
+import {
+  authors, editions, series, subjects, workAuthors, works, workSeries, workSubjects,
+} from './schema.js';
 import {
   normalizeAuthor,
   normalizeEdition,
@@ -50,92 +55,85 @@ async function* readLines(path: string): AsyncGenerator<string> {
 }
 
 function catalogWriter(db: Database.Database) {
-  const upsertWorkRow = db.prepare(`
-    INSERT INTO works(id, title, description, first_publish_year, source)
-    VALUES (?, ?, ?, ?, 'openlibrary')
-    ON CONFLICT(id) DO UPDATE SET
-      title = excluded.title,
-      description = excluded.description,
-      first_publish_year = excluded.first_publish_year
-  `);
-  const upsertEditionRow = db.prepare(`
-    INSERT INTO editions(id, work_id, title, language) VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      work_id = excluded.work_id,
-      title = excluded.title,
-      language = excluded.language
-  `);
-  const previousEditionParent = db.prepare('SELECT work_id FROM editions WHERE id = ?');
-  const upsertAuthorRow = db.prepare(`
-    INSERT INTO authors(id, name) VALUES (?, ?)
-    ON CONFLICT(id) DO UPDATE SET name = excluded.name
-  `);
-  const ensureAuthor = db.prepare('INSERT OR IGNORE INTO authors(id) VALUES (?)');
-  const linkAuthor = db.prepare('INSERT OR IGNORE INTO work_authors(work_id, author_id) VALUES (?, ?)');
-  const upsertSubject = db.prepare(`
-    INSERT INTO subjects(id, label) VALUES (?, ?)
-    ON CONFLICT(id) DO UPDATE SET label = excluded.label
-  `);
-  const linkSubject = db.prepare('INSERT OR IGNORE INTO work_subjects(work_id, subject_id) VALUES (?, ?)');
-  const upsertSeries = db.prepare(`
-    INSERT INTO series(id, name) VALUES (?, ?)
-    ON CONFLICT(id) DO UPDATE SET name = excluded.name
-  `);
-  const linkSeries = db.prepare(`
-    INSERT INTO work_series(work_id, series_id, position) VALUES (?, ?, ?)
-    ON CONFLICT(work_id, series_id) DO UPDATE SET
-      position = COALESCE(work_series.position, excluded.position)
-  `);
-  const deleteAuthors = db.prepare('DELETE FROM work_authors WHERE work_id = ?');
-  const deleteSubjects = db.prepare('DELETE FROM work_subjects WHERE work_id = ?');
-  const deleteSeries = db.prepare('DELETE FROM work_series WHERE work_id = ?');
-  const deleteTitles = db.prepare('DELETE FROM work_titles WHERE work_id = ?');
-  const selectWorkTitle = db.prepare('SELECT title FROM works WHERE id = ?');
-  const selectEditionTitles = db.prepare('SELECT title FROM editions WHERE work_id = ?');
-  const insertTitle = db.prepare('INSERT INTO work_titles(work_id, title) VALUES (?, ?)');
+  const orm = drizzle(db);
 
   const refreshTitles = (workId: string): void => {
-    deleteTitles.run(workId);
-    const work = selectWorkTitle.get(workId) as { title: string } | undefined;
-    if (work) insertTitle.run(workId, work.title);
-    const editions = selectEditionTitles.all(workId) as { title: string }[];
-    for (const edition of editions) insertTitle.run(workId, edition.title);
+    orm.run(sql`DELETE FROM work_titles WHERE work_id = ${workId}`);
+    const work = orm.select({ title: works.title }).from(works)
+      .where(eq(works.id, workId)).get();
+    if (work) orm.run(sql`INSERT INTO work_titles(work_id, title) VALUES (${workId}, ${work.title})`);
+    const titles = orm.select({ title: editions.title }).from(editions)
+      .where(eq(editions.workId, workId)).all();
+    for (const edition of titles) {
+      orm.run(sql`INSERT INTO work_titles(work_id, title) VALUES (${workId}, ${edition.title})`);
+    }
   };
 
   const addSeries = (workId: string, entries: NormalizedSeries[]): void => {
     for (const entry of entries) {
-      upsertSeries.run(entry.id, entry.name);
-      linkSeries.run(workId, entry.id, entry.position);
+      orm.insert(series).values({ id: entry.id, name: entry.name })
+        .onConflictDoUpdate({ target: series.id, set: { name: entry.name } }).run();
+      orm.insert(workSeries).values({ workId, seriesId: entry.id, position: entry.position })
+        .onConflictDoUpdate({
+          target: [workSeries.workId, workSeries.seriesId],
+          set: { position: sql`COALESCE(${workSeries.position}, excluded.position)` },
+        }).run();
     }
   };
 
   return {
     work: db.transaction((work: NormalizedWork) => {
-      upsertWorkRow.run(work.id, work.title, work.description, work.firstPublishYear);
-      deleteAuthors.run(work.id);
+      orm.insert(works).values({
+        id: work.id,
+        title: work.title,
+        description: work.description,
+        firstPublishYear: work.firstPublishYear,
+        source: 'openlibrary',
+      }).onConflictDoUpdate({
+        target: works.id,
+        set: {
+          title: work.title,
+          description: work.description,
+          firstPublishYear: work.firstPublishYear,
+        },
+      }).run();
+      orm.delete(workAuthors).where(eq(workAuthors.workId, work.id)).run();
       for (const authorId of work.authorIds) {
-        ensureAuthor.run(authorId);
-        linkAuthor.run(work.id, authorId);
+        orm.insert(authors).values({ id: authorId }).onConflictDoNothing().run();
+        orm.insert(workAuthors).values({ workId: work.id, authorId })
+          .onConflictDoNothing().run();
       }
-      deleteSubjects.run(work.id);
+      orm.delete(workSubjects).where(eq(workSubjects.workId, work.id)).run();
       for (const label of work.subjects) {
         const id = `openlibrary:subject:${label.replace(/\s+/g, ' ').toLowerCase()}`;
-        upsertSubject.run(id, label);
-        linkSubject.run(work.id, id);
+        orm.insert(subjects).values({ id, label })
+          .onConflictDoUpdate({ target: subjects.id, set: { label } }).run();
+        orm.insert(workSubjects).values({ workId: work.id, subjectId: id })
+          .onConflictDoNothing().run();
       }
-      deleteSeries.run(work.id);
+      orm.delete(workSeries).where(eq(workSeries.workId, work.id)).run();
       addSeries(work.id, work.series);
       refreshTitles(work.id);
     }),
     edition: db.transaction((edition: NormalizedEdition) => {
-      const previous = previousEditionParent.get(edition.id) as { work_id: string } | undefined;
-      upsertEditionRow.run(edition.id, edition.workId, edition.title, edition.language);
+      const previous = orm.select({ workId: editions.workId }).from(editions)
+        .where(eq(editions.id, edition.id)).get();
+      orm.insert(editions).values({
+        id: edition.id,
+        workId: edition.workId,
+        title: edition.title,
+        language: edition.language,
+      }).onConflictDoUpdate({
+        target: editions.id,
+        set: { workId: edition.workId, title: edition.title, language: edition.language },
+      }).run();
       addSeries(edition.workId, edition.series);
       refreshTitles(edition.workId);
-      if (previous && previous.work_id !== edition.workId) refreshTitles(previous.work_id);
+      if (previous && previous.workId !== edition.workId) refreshTitles(previous.workId);
     }),
     author: db.transaction((id: string, name: string) => {
-      upsertAuthorRow.run(id, name);
+      orm.insert(authors).values({ id, name })
+        .onConflictDoUpdate({ target: authors.id, set: { name } }).run();
     }),
   };
 }
