@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { openCatalog } from './catalog/db.js';
 import { importCatalog } from './catalog/import.js';
-import { getWorkDetails, searchWorksByTitle } from './catalog/queries.js';
+import { getWorkDetails, recommendWorks, searchWorksByTitle } from './catalog/queries.js';
 
 interface ParsedArguments {
   positional: string[];
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     console.log(JSON.stringify(report, null, 2));
     return;
   }
-  if (command === 'search' || command === 'show') {
+  if (command === 'search' || command === 'show' || command === 'recommend') {
     const value = requiredPosition(positional, command);
     const dbPath = requiredOption(options, 'db');
     if (!existsSync(dbPath)) throw new Error(`Database not found: ${dbPath}`);
@@ -58,6 +58,11 @@ async function main(): Promise<void> {
       if (command === 'search') {
         const limit = Number(options.get('limit') ?? 20);
         console.log(JSON.stringify(searchWorksByTitle(db, value, limit), null, 2));
+      } else if (command === 'recommend') {
+        const limit = Number(options.get('limit') ?? 10);
+        const recommendations = recommendWorks(db, value, limit);
+        if (!recommendations) throw new Error(`Work not found: ${value}`);
+        console.log(JSON.stringify(recommendations, null, 2));
       } else {
         const details = getWorkDetails(db, value);
         if (!details) throw new Error(`Work not found: ${value}`);
@@ -68,7 +73,7 @@ async function main(): Promise<void> {
     }
     return;
   }
-  throw new Error('Usage: catalog <import|search|show> [arguments]');
+  throw new Error('Usage: catalog <import|search|show|recommend> [arguments]');
 }
 
 main().catch((error: unknown) => {

@@ -48,8 +48,8 @@ These are goals, not features already available in this repository.
 
 ## Where it stands today
 
-The current milestone is a **local catalog foundation**, not a published site
-or a recommendation engine. It can:
+The current milestone is a **local catalog with an initial recommendation
+baseline**, not a published site. It can:
 
 - Import selected works, editions, and authors from Open Library dumps into a
   local SQLite database managed with Drizzle migrations.
@@ -57,10 +57,14 @@ or a recommendation engine. It can:
   source provides them.
 - Search work and edition titles and return one result per work.
 - Show work details through a JSON-output command-line interface.
+- Recommend other works using explicitly mapped subjects and shared authorship,
+  returning the evidence behind each score.
 
-It does not yet search descriptions or themes, recommend books, maintain user
-profiles or reading lists, or offer an API or web interface. Importing selected
-records is also not the same as hosting a complete worldwide catalog.
+It does not yet search descriptions or free-text themes, personalize
+recommendations, maintain user profiles or reading lists, or offer an API or
+web interface. Embeddings and RAG are not implemented. Importing selected
+records is also not the same as hosting a complete worldwide catalog, and
+synthetic tests do not establish real-world recommendation quality.
 
 ## Try the local catalog
 
@@ -82,7 +86,42 @@ npm run catalog -- import \
   --db data/catalog.db
 npm run catalog -- search "lord of the rings" --db data/catalog.db
 npm run catalog -- show /works/OL1W --db data/catalog.db
+npm run catalog -- recommend /works/OL1W --db data/catalog.db --limit 10
 ```
+
+The original import fixture has no eligible recommendation pair, so this
+`recommend` example returns `[]`. A non-empty synthetic catalog, ranking, and
+the complete CLI output are exercised by:
+
+```bash
+npm test -- test/recommend-cli.test.ts
+```
+
+## How recommendations work today
+
+The algorithm compares normalized subject labels, not descriptions or the
+reader's history. Its small vocabulary maps explicit English aliases to eight
+themes; unknown subjects stay in the catalog but do not contribute to scores.
+It does not translate subjects or infer missing themes.
+
+Each shared broad theme adds 1 point, each shared specific theme adds 3, and
+sharing at least one author ID adds 1 once. A candidate must share a specific
+theme: broad categories or authorship alone are not enough. These points are
+heuristics, not a percentage match or a prediction that someone will like a book.
+
+Results contain `id`, `title`, `score`, `sharedThemes` (IDs, labels, and weights),
+and `sharedAuthorIds`. The selected work and known members of its book series
+are excluded; series remain explicit relations available through `show`.
+Results are unique by work, sorted by score and then ID, and limited to 10 by
+default. `--limit` must be a positive integer.
+
+A known work with insufficient evidence returns `[]` successfully. An unknown
+work, missing database, or invalid limit produces an error. The command does
+not import data or apply migrations. Coverage depends on source metadata and
+the explicit vocabulary, and the current implementation loads the small local
+catalog into memory; it is not yet a worldwide-catalog search strategy.
+
+## Development
 
 Run `npm test` and `npm run typecheck` to validate the current code. For the
 data flow, design decisions, and limitations, see
