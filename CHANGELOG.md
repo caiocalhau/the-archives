@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explainable local recommendations through `catalog recommend`, using a small
   explicit theme vocabulary and shared author IDs. Rank distinct works with
   catalog evidence, exclude known same-series works, and return empty results
-  when thematic evidence is insufficient.
+  when thematic evidence is insufficient
+  ([#3](https://github.com/caiocalhau/the-archives/pull/3)).
 - Synthetic recommendation tests covering normalization, scoring, database
-  integration, CLI limits and errors, and preservation of source metadata.
+  integration, CLI limits and errors, and preservation of source metadata
+  ([#3](https://github.com/caiocalhau/the-archives/pull/3)).
 - A local SQLite catalog that distinguishes works from editions and stores
   authors, subjects, book-series membership, and source provenance
   ([#1](https://github.com/caiocalhau/the-archives/pull/1)).
