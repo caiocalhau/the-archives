@@ -4,6 +4,9 @@ import { eq, sql } from 'drizzle-orm';
 import {
   authors, editions, series, subjects, workAuthors, works, workSeries, workSubjects,
 } from './schema.js';
+import {
+  rankRecommendations, type Recommendation, type RecommendationWork,
+} from './recommendations.js';
 
 export interface WorkSummary {
   id: string;
@@ -76,4 +79,37 @@ export function getWorkDetails(db: Database.Database, workId: string): WorkDetai
     subjects: workSubjectsRows.map(({ label }) => label),
     series: workSeriesRows,
   };
+}
+
+export function recommendWorks(
+  db: Database.Database,
+  workId: string,
+  limit: number,
+): Recommendation[] | null {
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new RangeError('Recommendation limit must be a positive integer');
+  }
+  const orm = drizzle(db);
+  if (!orm.select({ id: works.id }).from(works).where(eq(works.id, workId)).get()) return null;
+
+  const catalog = new Map<string, RecommendationWork & {
+    subjects: string[];
+    authorIds: string[];
+    seriesIds: string[];
+  }>();
+  for (const work of orm.select({ id: works.id, title: works.title }).from(works).all()) {
+    catalog.set(work.id, { ...work, subjects: [], authorIds: [], seriesIds: [] });
+  }
+  const subjectRows = orm.select({ workId: workSubjects.workId, label: subjects.label })
+    .from(workSubjects).innerJoin(subjects, eq(subjects.id, workSubjects.subjectId)).all();
+  for (const { workId: id, label } of subjectRows) catalog.get(id)?.subjects.push(label);
+  for (const { workId: id, authorId } of orm.select().from(workAuthors).all()) {
+    catalog.get(id)?.authorIds.push(authorId);
+  }
+  for (const { workId: id, seriesId } of orm.select().from(workSeries).all()) {
+    catalog.get(id)?.seriesIds.push(seriesId);
+  }
+
+  const source = catalog.get(workId);
+  return source ? rankRecommendations(source, [...catalog.values()], limit) : null;
 }

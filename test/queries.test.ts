@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { openCatalog } from '../src/catalog/db.js';
+import { initializeCatalog, openCatalog } from '../src/catalog/db.js';
 import { importCatalog } from '../src/catalog/import.js';
 import { getWorkDetails, searchWorksByTitle } from '../src/catalog/queries.js';
+import * as catalogQueries from '../src/catalog/queries.js';
+import { seedRecommendationCatalog } from './fixtures/recommendation-catalog.js';
 
 const fixtures = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -106,4 +108,54 @@ test('CLI imports, searches and shows a work with JSON output', (t) => {
   assert.ifError(missing.error);
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /not found/i);
+});
+
+test('catalog recommendations use author IDs and return one result per work', () => {
+  const db = openCatalog(':memory:');
+  try {
+    initializeCatalog(db);
+    seedRecommendationCatalog(db);
+    const detailsBefore = getWorkDetails(db, '/works/source');
+    const subjectsBefore = db.prepare('SELECT * FROM subjects ORDER BY id').all();
+    const results = catalogQueries.recommendWorks(db, '/works/source', 10);
+    assert.deepEqual(results?.map(({ id }) => id), [
+      '/works/two-themes', '/works/same-author', '/works/same-name',
+    ]);
+    assert.deepEqual(results?.map(({ score }) => score), [6, 5, 4]);
+    assert.deepEqual(results?.[1]?.sharedAuthorIds, ['/authors/A']);
+    assert.deepEqual(results?.[2]?.sharedAuthorIds, []);
+    assert.equal(results?.filter(({ id }) => id === '/works/two-themes').length, 1);
+    assert.deepEqual(getWorkDetails(db, '/works/source'), detailsBefore);
+    assert.deepEqual(db.prepare('SELECT * FROM subjects ORDER BY id').all(), subjectsBefore);
+    assert.equal(getWorkDetails(db, '/works/two-themes')?.description, null);
+    assert.deepEqual(catalogQueries.recommendWorks(db, '/works/source', 1)?.map(({ id }) => id), [
+      '/works/two-themes',
+    ]);
+  } finally {
+    db.close();
+  }
+});
+
+test('catalog recommendations distinguish sparse known works from missing works', () => {
+  const db = openCatalog(':memory:');
+  try {
+    initializeCatalog(db);
+    seedRecommendationCatalog(db);
+    assert.deepEqual(catalogQueries.recommendWorks(db, '/works/sparse', 10), []);
+    assert.equal(catalogQueries.recommendWorks(db, '/works/missing', 10), null);
+  } finally {
+    db.close();
+  }
+});
+
+test('catalog recommendation limits are validated even for unknown works', () => {
+  const db = openCatalog(':memory:');
+  try {
+    initializeCatalog(db);
+    for (const limit of [0, -1, 1.5, NaN, Infinity]) {
+      assert.throws(() => catalogQueries.recommendWorks(db, '/works/missing', limit), /limit/i);
+    }
+  } finally {
+    db.close();
+  }
 });
