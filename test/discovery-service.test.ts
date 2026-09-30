@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { initializeCatalog, openCatalog } from '../src/catalog/db.js';
-import { discoverBooks } from '../src/catalog/discovery/service.js';
+import { discoverBooks, inspectBook } from '../src/catalog/discovery/service.js';
 import type { BookProvider, BookRecord, ProviderResult } from '../src/catalog/discovery/types.js';
 
 const openBook: BookRecord = {
@@ -118,5 +118,141 @@ test('service bounds and deduplicates external candidates without merging source
       '/works/OL10W', '/works/OL11W', '/works/OL12W', '/works/OL13W', '/works/OL14W',
     ]);
     assert.equal(result.providers.google.status, 'not_needed');
+  } finally { db.close(); }
+});
+
+function inspectedProvider(
+  calls: string[],
+  getResult: ProviderResult<BookRecord>,
+  searchResult: ProviderResult<BookRecord[]> = { status: 'no_match', value: null },
+): BookProvider {
+  return {
+    async search(title, authors) {
+      calls.push(`search:${title}:${authors?.join(',') ?? ''}`);
+      return searchResult;
+    },
+    async get(id) { calls.push(`get:${id}`); return getResult; },
+  };
+}
+
+test('complete local details, including a broad subject, need no provider', async () => {
+  const db = catalog();
+  try {
+    db.prepare('INSERT INTO subjects(id, label) VALUES (?, ?)').run('fiction', 'Fiction');
+    db.prepare('INSERT INTO work_subjects(work_id, subject_id) VALUES (?, ?)')
+      .run('/works/OL1W', 'fiction');
+    const calls: string[] = [];
+    const before = db.serialize();
+    const result = await inspectBook(db, 'local', '/works/OL1W', {
+      openlibrary: inspectedProvider(calls, { status: 'ok', value: openBook }),
+      google: inspectedProvider(calls, { status: 'ok', value: googleBook }),
+    });
+    assert.equal(result?.selected?.description, 'A local story');
+    assert.deepEqual(result?.selected?.subjects, ['Fiction']);
+    assert.deepEqual(result?.providers, {
+      openlibrary: { status: 'not_needed' }, google: { status: 'not_needed' },
+    });
+    assert.deepEqual(calls, []);
+    assert.equal('recommendations' in (result ?? {}), false);
+    assert.deepEqual(db.serialize(), before);
+  } finally { db.close(); }
+});
+
+test('sparse local Open Library work displays same-source detail without overwriting local data', async () => {
+  const db = catalog();
+  try {
+    db.prepare('UPDATE works SET description = NULL WHERE id = ?').run('/works/OL1W');
+    const calls: string[] = [];
+    const result = await inspectBook(db, 'local', '/works/OL1W', {
+      openlibrary: inspectedProvider(calls, { status: 'ok', value: {
+        ...openBook, id: '/works/OL1W', description: 'Provider description',
+        subjects: ['Fantasy'],
+      } }),
+      google: inspectedProvider(calls, { status: 'ok', value: googleBook }),
+    });
+    assert.equal(result?.selected?.description, null);
+    assert.equal(result?.sameSourceDetails?.description, 'Provider description');
+    assert.deepEqual(result?.externalCandidates, []);
+    assert.deepEqual(calls, ['get:/works/OL1W']);
+    assert.equal(result?.providers.google.status, 'not_needed');
+  } finally { db.close(); }
+});
+
+test('remaining missing metadata searches Google but never merges its volume into the local work', async () => {
+  const db = catalog();
+  try {
+    const calls: string[] = [];
+    const result = await inspectBook(db, 'local', '/works/OL1W', {
+      openlibrary: inspectedProvider(calls, { status: 'ok', value: openBook }),
+      google: inspectedProvider(calls, { status: 'ok', value: googleBook },
+        { status: 'ok', value: [googleBook] }),
+    });
+    assert.equal(result?.selected?.description, 'A local story');
+    assert.deepEqual(result?.selected?.subjects, []);
+    assert.deepEqual(result?.externalCandidates.map(({ id }) => id), ['vol1']);
+    assert.deepEqual(calls, ['get:/works/OL1W', 'search:The Hobbit:']);
+    assert.equal(result?.providers.google.status, 'ok');
+  } finally { db.close(); }
+});
+
+test('a local non-Open-Library ID keeps searched matches separate and tries Google', async () => {
+  const db = catalog();
+  try {
+    db.prepare('INSERT INTO works(id, title, source) VALUES (?, ?, ?)')
+      .run('custom-1', 'Another Book', 'synthetic');
+    const calls: string[] = [];
+    const result = await inspectBook(db, 'local', 'custom-1', {
+      openlibrary: inspectedProvider(calls, { status: 'ok', value: openBook },
+        { status: 'ok', value: [openBook] }),
+      google: inspectedProvider(calls, { status: 'ok', value: googleBook },
+        { status: 'ok', value: [googleBook] }),
+    });
+    assert.equal(result?.selected?.id, 'custom-1');
+    assert.equal(result?.sameSourceDetails, null);
+    assert.deepEqual(result?.externalCandidates.map(({ source }) => source), [
+      'openlibrary', 'google',
+    ]);
+    assert.deepEqual(calls, ['search:Another Book:', 'search:Another Book:']);
+  } finally { db.close(); }
+});
+
+test('selected external books are inspectable by their own IDs without substitution', async () => {
+  const db = catalog();
+  try {
+    const calls: string[] = [];
+    const before = db.serialize();
+    const providers = {
+      openlibrary: inspectedProvider(calls, { status: 'ok', value: openBook }),
+      google: inspectedProvider(calls, { status: 'ok', value: googleBook },
+        { status: 'ok', value: [googleBook] }),
+    };
+    const openResult = await inspectBook(db, 'openlibrary', '/works/OL9W', providers);
+    assert.equal(openResult?.selected?.source, 'openlibrary');
+    assert.deepEqual(openResult?.externalCandidates.map(({ id }) => id), ['vol1']);
+    assert.deepEqual(calls, ['get:/works/OL9W', 'search:The Hobbit:Tolkien']);
+    calls.length = 0;
+    const googleResult = await inspectBook(db, 'google', 'vol1', providers);
+    assert.equal(googleResult?.selected?.source, 'google');
+    assert.deepEqual(calls, ['get:vol1']);
+    assert.equal(googleResult?.providers.openlibrary.status, 'not_needed');
+    assert.deepEqual(db.serialize(), before);
+  } finally { db.close(); }
+});
+
+test('unavailable external selection reports its source outcome; missing local ID remains unknown', async () => {
+  const db = catalog();
+  try {
+    const providers = {
+      openlibrary: inspectedProvider([], { status: 'error', value: null, errorKind: 'timeout' }),
+      google: inspectedProvider([], { status: 'no_match', value: null }),
+    };
+    assert.equal(await inspectBook(db, 'local', '/works/missing', providers), null);
+    const result = await inspectBook(db, 'openlibrary', '/works/OL9W', providers);
+    assert.equal(result?.selected, null);
+    assert.deepEqual(result?.externalCandidates, []);
+    assert.deepEqual(result?.providers, {
+      openlibrary: { status: 'error', errorKind: 'timeout' },
+      google: { status: 'not_needed' },
+    });
   } finally { db.close(); }
 });
