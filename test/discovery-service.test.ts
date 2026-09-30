@@ -178,6 +178,26 @@ test('sparse local Open Library work displays same-source detail without overwri
   } finally { db.close(); }
 });
 
+test('blank local description is missing and same-source text can complete it', async () => {
+  const db = catalog();
+  try {
+    db.prepare('UPDATE works SET description = ? WHERE id = ?').run('   ', '/works/OL1W');
+    db.prepare('INSERT INTO subjects(id, label) VALUES (?, ?)').run('fantasy', 'Fantasy');
+    db.prepare('INSERT INTO work_subjects(work_id, subject_id) VALUES (?, ?)')
+      .run('/works/OL1W', 'fantasy');
+    const calls: string[] = [];
+    const result = await inspectBook(db, 'local', '/works/OL1W', {
+      openlibrary: inspectedProvider(calls, { status: 'ok', value: {
+        ...openBook, id: '/works/OL1W', description: 'Provider description',
+        subjects: ['Fantasy'],
+      } }),
+      google: inspectedProvider(calls, { status: 'ok', value: googleBook }),
+    });
+    assert.equal(result?.sameSourceDetails?.description, 'Provider description');
+    assert.deepEqual(calls, ['get:/works/OL1W']);
+  } finally { db.close(); }
+});
+
 test('remaining missing metadata searches Google but never merges its volume into the local work', async () => {
   const db = catalog();
   try {

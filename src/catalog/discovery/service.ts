@@ -41,8 +41,16 @@ function localBook(details: WorkDetails): BookRecord {
   };
 }
 
+function hasDescription(book: BookRecord): boolean {
+  return Boolean(book.description?.trim());
+}
+
+function hasSubjects(book: BookRecord): boolean {
+  return book.subjects.some((subject) => subject.trim() !== '');
+}
+
 function complete(book: BookRecord): boolean {
-  return book.description !== null && book.subjects.length > 0;
+  return hasDescription(book) && hasSubjects(book);
 }
 
 export async function discoverBooks(
@@ -100,8 +108,9 @@ export async function inspectBook(
 
     if (result.sameSourceDetails && complete({
       ...result.selected,
-      description: result.selected.description ?? result.sameSourceDetails.description,
-      subjects: result.selected.subjects.length
+      description: hasDescription(result.selected)
+        ? result.selected.description : result.sameSourceDetails.description,
+      subjects: hasSubjects(result.selected)
         ? result.selected.subjects : result.sameSourceDetails.subjects,
     })) return result;
 
