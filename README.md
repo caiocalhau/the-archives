@@ -49,7 +49,7 @@ These are goals, not features already available in this repository.
 ## Where it stands today
 
 The current milestone is a **local catalog with an initial recommendation
-baseline**, not a published site. It can:
+baseline and read-only external discovery**, not a published site. It can:
 
 - Import selected works, editions, and authors from Open Library dumps into a
   local SQLite database managed with Drizzle migrations.
@@ -59,12 +59,18 @@ baseline**, not a published site. It can:
 - Show work details through a JSON-output command-line interface.
 - Recommend other works using explicitly mapped subjects and shared authorship,
   returning the evidence behind each score.
+- Discover a title locally first, then consult Open Library and optionally
+  Google Books when no local title matches.
+- Inspect a selected local or external book, showing available metadata and
+  separate external candidates when details are missing.
 
 It does not yet search descriptions or free-text themes, personalize
 recommendations, maintain user profiles or reading lists, or offer an API or
 web interface. Embeddings and RAG are not implemented. Importing selected
 records is also not the same as hosting a complete worldwide catalog, and
 synthetic tests do not establish real-world recommendation quality.
+External search results are not imported or recommended, and this CLI is not
+a public API or a replacement for a worldwide local catalog.
 
 ## Try the local catalog
 
@@ -87,6 +93,8 @@ npm run catalog -- import \
 npm run catalog -- search "lord of the rings" --db data/catalog.db
 npm run catalog -- show /works/OL1W --db data/catalog.db
 npm run catalog -- recommend /works/OL1W --db data/catalog.db --limit 10
+npm run catalog -- discover "lord of the rings" --db data/catalog.db
+npm run catalog -- inspect local /works/OL1W --db data/catalog.db
 ```
 
 The original import fixture has no eligible recommendation pair, so this
@@ -96,6 +104,46 @@ the complete CLI output are exercised by:
 ```bash
 npm test -- test/recommend-cli.test.ts
 ```
+
+## Try external discovery
+
+Search for a title absent from the small local fixture:
+
+```bash
+npm run catalog -- discover "Fourth Wing" --db data/catalog.db
+```
+
+`discover` returns source-labeled candidates and the outcome of each provider
+consulted. Local matches stop the search. Otherwise, the CLI asks Open Library
+for at most five work candidates and only tries Google Books if Open Library
+has no credible title match or fails. To use Google Books, create a local `.env`
+containing `GOOGLE_BOOKS_API_KEY=<your key>` and run:
+
+```bash
+node --env-file=.env --import tsx src/cli.ts discover "Fourth Wing" --db data/catalog.db
+```
+
+Select a returned `source` and `id`, then inspect that exact result. For
+example, replace the ID below with a work ID returned by `discover`:
+
+```bash
+node --env-file=.env --import tsx src/cli.ts inspect openlibrary /works/OL123W --db data/catalog.db
+```
+
+`inspect` shows the chosen book's available description, authors, subjects,
+source, and ID. For a sparse local work, a direct Open Library lookup with
+the same work ID appears as `sameSourceDetails`; possible cross-source matches
+remain separate `externalCandidates`. It does not run `recommend` or write to
+SQLite. External candidates cannot yet enter local recommendations. A missing
+Google key is reported as `skipped`, not as a failed local search. The CLI
+never prints or stores the key and sends it only in a request header.
+
+The commands use short timeouts, small result limits, and no pagination.
+Optionally set `OPEN_LIBRARY_CONTACT_EMAIL` to identify regular Open Library
+requests; without it, the adapter spaces its own requests at least one second
+apart within a CLI process. Separate processes and a future public API need
+their own rate controls. Live provider availability, data quality, and storage
+rights need separate evaluation before a published service or import feature.
 
 ## How recommendations work today
 

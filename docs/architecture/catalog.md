@@ -1,6 +1,6 @@
 # Local catalog and recommendation baseline
 
-The local catalog validates the data flow before publishing an API: a selection of Open Library work IDs is imported into SQLite, and title searches return works rather than one result per edition. An initial recommendation baseline now compares explicitly normalized subjects and authorship. The SQLite database and source dumps stay out of Git. The public API, descriptive search, personalized ranking, and frontend are not implemented.
+The local catalog validates the data flow before publishing an API: a selection of Open Library work IDs is imported into SQLite, and title searches return works rather than one result per edition. An initial recommendation baseline compares explicitly normalized subjects and authorship. Read-only CLI discovery can now consult Open Library and Google Books when local coverage is missing; it does not grow the catalog. The SQLite database and source dumps stay out of Git. The public API, descriptive search, personalized ranking, and frontend are not implemented.
 
 ## Data flow
 
@@ -9,6 +9,7 @@ The local catalog validates the data flow before publishing an API: a selection 
 3. `src/catalog/schema.ts` defines the relational tables with Drizzle. The versioned SQL in `drizzle/` initializes the local database, including the FTS5 virtual table that Drizzle does not model. Authors, subjects, and series are related to works. Open Library IDs are preserved, and `works.source` records provenance.
 4. `src/catalog/import.ts` and `src/catalog/queries.ts` use Drizzle for relational reads and writes. FTS5 index maintenance and title matching remain parameterized SQL. Search returns each work only once. `src/cli.ts` exposes import, search, and details as JSON.
 5. `recommendWorks` in `src/catalog/queries.ts` checks the selected work and loads work, subject, author-ID, and series-ID relations through five bulk/lookup queries, independent of candidate count. It builds one plain record per work and calls the pure engine in `src/catalog/recommendations.ts`. `src/catalog/themes.ts` maps explicit aliases without changing stored subjects. The CLI exposes `recommend` as a JSON array.
+6. `src/catalog/discovery/service.ts` coordinates `discover` and `inspect` without writes. `discover` reuses local title search, asks Open Library only after a local miss, and asks Google Books only after an Open Library miss or error. Adapters in `src/catalog/discovery/` parse provider JSON, validate IDs and titles, cap results, and return source-labeled records. `inspect` fetches a selected result by its source ID and, when metadata is absent, keeps cross-source candidates separate rather than inferring identity. The existing recommendation engine only accepts local catalog works.
 
 The work/edition distinction follows the [Open Library model](https://openlibrary.org/dev/docs/api/books). The five-column format and monthly dumps are described in the [dump documentation](https://openlibrary.org/developers/dumps). The [SQLite FTS5](https://www.sqlite.org/fts5.html) `unicode61` tokenizer supports case- and accent-insensitive searches for Latin-script titles.
 
@@ -29,6 +30,8 @@ npm run catalog -- import \
 npm run catalog -- search "lord of the rings" --db data/catalog.db
 npm run catalog -- show /works/OL1W --db data/catalog.db
 npm run catalog -- recommend /works/OL1W --db data/catalog.db --limit 10
+npm run catalog -- discover "lord of the rings" --db data/catalog.db
+npm run catalog -- inspect local /works/OL1W --db data/catalog.db
 npm test
 npm run typecheck
 ```
@@ -36,6 +39,10 @@ npm run typecheck
 `search` accepts a positive integer through `--limit` and defaults to 20. The same `import` command accepts Open Library `.txt.gz` dumps. The selection file contains one `/works/...` key per line. These examples use synthetic data to exercise the flow, not a real catalog or reproduced book descriptions.
 
 The original fixture produces no eligible recommendations, so the command above returns `[]`. `npm test -- test/recommend-cli.test.ts` builds an isolated, non-empty synthetic recommendation catalog and checks CLI output, limits, failures, and database preservation. It does not download records or demonstrate real-book relevance.
+
+For live discovery, `discover <title>` consults at most five candidates per external provider and accepts only a contiguous whole-word title or matching-edition-title sequence after NFKC normalization. It does not translate titles or infer cross-source identity. `inspect <source> <id>` shows the selected book's details and per-provider outcomes, not recommendations. A local work with both description and subjects needs no network lookup; a broad subject still counts as present. A sparse local Open Library work may show direct same-ID provider details without modifying its stored record. Other matches remain candidates with distinct source IDs. Missing fields stay missing.
+
+Network requests are sequential, have a five-second timeout each, and do not retry. Open Library requests follow its identification and in-process anonymous throttling guidance. Google Books is skipped without `GOOGLE_BOOKS_API_KEY`; when configured, the key travels only in a request header. The CLI has no public request limiter. External responses are never persisted; per-field storage rights and deduplication rules must be evaluated before incorporation. Records identify their source through `source` and `id`; provider page links are not part of the discovery model. The test suite uses fake provider responses rather than live network calls.
 
 ## Recommendation rules and evidence
 
