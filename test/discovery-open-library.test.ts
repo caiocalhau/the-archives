@@ -25,7 +25,7 @@ test('search accepts matching work or edition titles and keeps distinct work IDs
   assert.equal(result.status, 'ok');
   if (result.status !== 'ok') return;
   assert.deepEqual(result.value.map(({ id }) => id), ['/works/OL1W', '/works/OL2W']);
-  assert.equal(result.value[0]?.url, 'https://openlibrary.org/works/OL1W');
+  assert.equal(Object.hasOwn(result.value[0]!, 'url'), false);
   assert.deepEqual(result.value[0]?.authors, ['Tolkien']);
   assert.equal(result.value[0]?.description, null);
   assert.deepEqual(result.value[0]?.subjects, []);
@@ -63,7 +63,7 @@ test('work lookup maps text and resolves bounded author references', async () =>
   assert.deepEqual(result.value, {
     source: 'openlibrary', id: '/works/OL9W', title: 'Book',
     authors: ['First Author'], description: 'A story.',
-    subjects: ['Fantasy', 'Magic'], url: 'https://openlibrary.org/works/OL9W',
+    subjects: ['Fantasy', 'Magic'],
   });
   assert.deepEqual(calls, ['/works/OL9W.json', '/authors/OL1A.json', '/authors/OL2A.json']);
 });

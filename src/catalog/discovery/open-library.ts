@@ -28,7 +28,7 @@ function book(value: Record<string, unknown>, authors: string[]): BookRecord | n
   return {
     source: 'openlibrary', id: value.key, title: value.title,
     authors, description: description(value.description),
-    subjects: strings(value.subjects), url: `https://openlibrary.org${value.key}`,
+    subjects: strings(value.subjects),
   };
 }
 

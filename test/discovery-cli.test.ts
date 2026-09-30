@@ -47,6 +47,7 @@ test('discover prints local candidates and inspect prints details without recomm
   const discovery = JSON.parse(found.stdout);
   assert.deepEqual(discovery.candidates.map(({ source, id }: { source: string; id: string }) =>
     ({ source, id })), [{ source: 'local', id: '/works/OL1W' }]);
+  assert.equal(Object.hasOwn(discovery.candidates[0], 'url'), false);
   assert.deepEqual(discovery.providers, {
     openlibrary: { status: 'not_needed' }, google: { status: 'not_needed' },
   });
@@ -55,6 +56,7 @@ test('discover prints local candidates and inspect prints details without recomm
   assert.equal(inspected.status, 0, inspected.stderr);
   const details = JSON.parse(inspected.stdout);
   assert.equal(details.selected.title, 'The Lord of the Rings');
+  assert.equal(Object.hasOwn(details.selected, 'url'), false);
   assert.equal(details.localDetails.series[0].position, '1');
   assert.equal('recommendations' in details, false);
   assert.deepEqual(details.providers, {

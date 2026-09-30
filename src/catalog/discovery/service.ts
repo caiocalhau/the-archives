@@ -36,8 +36,6 @@ function localBook(details: WorkDetails): BookRecord {
     source: 'local', id: details.id, title: details.title,
     authors: details.authors, description: details.description,
     subjects: details.subjects,
-    url: /^\/works\/OL\d+W$/.test(details.id)
-      ? `https://openlibrary.org${details.id}` : null,
   };
 }
 

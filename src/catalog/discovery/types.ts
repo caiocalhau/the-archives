@@ -17,7 +17,6 @@ export interface BookRecord {
   authors: string[];
   description: string | null;
   subjects: string[];
-  url: string | null;
 }
 
 export type ProviderResult<T> =

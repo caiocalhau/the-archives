@@ -7,12 +7,10 @@ import type { BookProvider, BookRecord, ProviderResult } from '../src/catalog/di
 const openBook: BookRecord = {
   source: 'openlibrary', id: '/works/OL9W', title: 'The Hobbit',
   authors: ['Tolkien'], description: null, subjects: [],
-  url: 'https://openlibrary.org/works/OL9W',
 };
 const googleBook: BookRecord = {
   source: 'google', id: 'vol1', title: 'The Hobbit',
   authors: ['Tolkien'], description: 'A story', subjects: ['Fantasy'],
-  url: 'https://books.google.com/books?id=vol1',
 };
 
 function provider(result: ProviderResult<BookRecord[]>, calls: string[]): BookProvider {
@@ -45,7 +43,6 @@ test('a local title hit wins without contacting either provider', async () => {
     assert.deepEqual(result.candidates, [{
       source: 'local', id: '/works/OL1W', title: 'The Hobbit',
       authors: [], description: 'A local story', subjects: [],
-      url: 'https://openlibrary.org/works/OL1W',
     }]);
     assert.deepEqual(result.providers, {
       openlibrary: { status: 'not_needed' }, google: { status: 'not_needed' },

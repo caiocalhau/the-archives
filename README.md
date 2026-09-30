@@ -131,7 +131,7 @@ node --env-file=.env --import tsx src/cli.ts inspect openlibrary /works/OL123W -
 ```
 
 `inspect` shows the chosen book's available description, authors, subjects,
-and source link. For a sparse local work, a direct Open Library lookup with
+source, and ID. For a sparse local work, a direct Open Library lookup with
 the same work ID appears as `sameSourceDetails`; possible cross-source matches
 remain separate `externalCandidates`. It does not run `recommend` or write to
 SQLite. External candidates cannot yet enter local recommendations. A missing

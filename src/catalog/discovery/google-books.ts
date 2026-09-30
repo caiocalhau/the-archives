@@ -22,24 +22,11 @@ function book(value: unknown): BookRecord | null {
     || !volumeIdPattern.test(volume.id) || typeof info.title !== 'string'
     || !info.title.trim()) return null;
 
-  const fallbackUrl = `https://books.google.com/books?id=${encodeURIComponent(volume.id)}`;
-  let url = fallbackUrl;
-  if (typeof info.infoLink === 'string') {
-    try {
-      const provided = new URL(info.infoLink);
-      if (provided.protocol === 'https:' && provided.hostname === 'books.google.com') {
-        url = provided.href;
-      }
-    } catch {
-      // A malformed optional link cannot invalidate the volume itself.
-    }
-  }
-
   return {
     source: 'google', id: volume.id, title: info.title,
     authors: strings(info.authors),
     description: typeof info.description === 'string' ? info.description.trim() || null : null,
-    subjects: strings(info.categories), url,
+    subjects: strings(info.categories),
   };
 }
 

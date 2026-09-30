@@ -35,16 +35,16 @@ test('search returns credible volume candidates with source metadata', async () 
   assert.deepEqual(result.value, [{
     source: 'google', id: 'vol_1', title: 'Fourth Wing',
     authors: ['Rebecca Yarros'], description: 'A dragon school.',
-    subjects: ['Fantasy'], url: 'https://books.google.com/books?id=vol_1',
+    subjects: ['Fantasy'],
   }]);
   assert.equal(JSON.stringify(result).includes(key), false);
 });
 
-test('get fetches a selected volume and keeps absent fields absent', async () => {
+test('get ignores a malformed optional infoLink and keeps absent fields absent', async () => {
   const fetchImpl: typeof fetch = async (input) => {
     assert.equal(new URL(String(input)).pathname, '/books/v1/volumes/vol_2');
     return json({ id: 'vol_2', volumeInfo: {
-      title: 'A Book', infoLink: 'https://evil.test/private',
+      title: 'A Book', infoLink: 'not an absolute URL',
     } });
   };
   const result = await createGoogleBooksProvider({ apiKey: 'key', fetchImpl }).get('vol_2');
@@ -52,7 +52,7 @@ test('get fetches a selected volume and keeps absent fields absent', async () =>
   if (result.status !== 'ok') return;
   assert.deepEqual(result.value, {
     source: 'google', id: 'vol_2', title: 'A Book', authors: [],
-    description: null, subjects: [], url: 'https://books.google.com/books?id=vol_2',
+    description: null, subjects: [],
   });
 });
 
