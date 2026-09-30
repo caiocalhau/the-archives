@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Read-only `catalog discover` and `catalog inspect` commands that use local
+  title search first, then Open Library and optional Google Books candidates.
+  Display source-labeled details and provider outcomes without storing external
+  responses or changing local recommendations.
+- Deterministic tests for title matching, provider errors and limits,
+  local-first fallback, inspection, CLI validation, and database preservation.
 - Explainable local recommendations through `catalog recommend`, using a small
   explicit theme vocabulary and shared author IDs. Rank distinct works with
   catalog evidence, exclude known same-series works, and return empty results
